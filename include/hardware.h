@@ -19,10 +19,10 @@
 
 typedef enum tDiscoLEDs
 {
-		disco_led1 = 0,
-		disco_led2,
-		disco_led3,
-		disco_led4
+	disco_led1 = 0,
+	disco_led2,
+	disco_led3,
+	disco_led4
 };
 
 //Priority levels for STM32F0. The less numeric value for more urgent interrupt, e.g. nvic_pr_0 = 0x00 for ultimate urgency.

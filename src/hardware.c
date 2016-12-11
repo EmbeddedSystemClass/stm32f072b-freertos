@@ -59,6 +59,7 @@ void vInitHardware(void)
 	rcc_periph_clock_enable(RCC_GPIOC);
 	rcc_periph_clock_enable(RCC_ADC1);
 	rcc_periph_clock_enable(RCC_USART1);
+	rcc_periph_clock_enable(RCC_USART2);
 
 	//Enable PWR domain
 	rcc_periph_clock_enable(RCC_PWR);
@@ -80,6 +81,10 @@ void vInitHardware(void)
 	//USART1 TX on PA9
 	gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO9);
 	gpio_set_af(GPIOA, GPIO_AF1, GPIO9);
+
+	//USART2 RX on PA15
+	gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO15);
+	gpio_set_af(GPIOA, GPIO_AF1, GPIO15);
 
 
 	//**************** EXTI initialization ****************
@@ -178,6 +183,7 @@ void vInitHardware(void)
 
 	//**************** UART ports initialization ****************
 
+	//USART1
 	usart_set_baudrate(USART1, 115200);
 	usart_set_databits(USART1, 8);
 	usart_set_parity(USART1, USART_PARITY_NONE);
@@ -186,6 +192,35 @@ void vInitHardware(void)
 	usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
 
 	usart_enable(USART1);
+
+	//todo: Send data to USART1 using DMA
+
+	//USART2
+	usart_set_baudrate(USART2, 115200);
+	usart_set_databits(USART2, 8);
+	usart_set_parity(USART2, USART_PARITY_NONE);
+	usart_set_stopbits(USART2, USART_CR2_STOP_1_0BIT);
+	usart_set_mode(USART2, USART_MODE_RX);						//Receive only :)
+	usart_set_flow_control(USART2, USART_FLOWCONTROL_NONE);
+
+	usart_enable(USART2);
+
+	//Flush RX queue
+	USART2_RQR |= USART_RQR_RXFRQ;
+
+	usart_recv(USART2);
+
+	//Clear pending IRQ request if it present
+	nvic_clear_pending_irq(NVIC_USART2_IRQ);
+
+	//Enable USART2 interrupt handling in NVIC
+	nvic_enable_irq(NVIC_USART2_IRQ);
+
+	//Enable USART2 RX interrupt request
+	usart_enable_rx_interrupt(USART2);
+
+
+
 
 
 	//**************** End of UART ports initialization ****************

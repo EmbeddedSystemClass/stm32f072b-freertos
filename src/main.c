@@ -29,9 +29,11 @@ const char* const DayOfWeekName[] = {"---", "MON", "TUE" , "WED", "THU", "FRI", 
 
 
 //Task priorities
-#define UART_GATEKEEPER_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
+#define UART_GATEKEEPER_TASK_PRIORITY				( tskIDLE_PRIORITY + 2 )
 #define TEMPERATURE_CALCULATION_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
-#define	RTC_WAKEUP_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
+#define	RTC_WAKEUP_TASK_PRIORITY					( tskIDLE_PRIORITY + 1 )
+#define	UART2RX_TASK_PRIORITY						( tskIDLE_PRIORITY + 2 )
+
 
 
 #define UART_QUEUE_LENGTH					( 64 )
@@ -46,6 +48,7 @@ const char* const DayOfWeekName[] = {"---", "MON", "TUE" , "WED", "THU", "FRI", 
 static QueueHandle_t xUARTQueue = NULL;
 static QueueHandle_t xADCQueue = NULL;
 static QueueHandle_t xTemperatureQueue = NULL;
+static QueueHandle_t xUART2RxQueue = NULL;
 
 //RTC Wakeup semaphore
 static SemaphoreHandle_t xSemaphoreRTCWakeup = NULL;
@@ -55,21 +58,23 @@ static SemaphoreHandle_t xSemaphoreRTCWakeup = NULL;
 static void prvTemperatureCalculationTask( void *pvParameters );
 static void prvRTCWakeupTask( void *pvParameters );
 
-static void prvUARTGatekeeperTask( void *pvParameters );
+static void prvUART1TxGatekeeperTask( void *pvParameters );
+
+static void prvUART2RxTask( void *pvParameters );
 
 //ADC1 interrupt service routine (EOC)
 void adc_comp_isr(void)
 {
-	int16_t adc_result = 0;
+	int16_t adc_data = 0;
 
 	BaseType_t xHigherPriorityTaskWoken;
 
 	// We have not woken a task at the start of the ISR.
 	xHigherPriorityTaskWoken = pdFALSE;
 
-	adc_result = adc_read_regular(ADC1);
+	adc_data = adc_read_regular(ADC1);
 
-	xQueueSendFromISR( xADCQueue, &adc_result, &xHigherPriorityTaskWoken );
+	xQueueSendFromISR( xADCQueue, &adc_data, &xHigherPriorityTaskWoken );
 
 	if( xHigherPriorityTaskWoken )
 	{
@@ -80,7 +85,7 @@ void adc_comp_isr(void)
 //RTC interrupt service routine (Periodic wakeup)
 void rtc_isr(void)
 {
-	static BaseType_t xHigherPriorityTaskWoken;
+	BaseType_t xHigherPriorityTaskWoken;
 
 	rtc_clear_wakeup_flag();
 	exti_reset_request(EXTI20);
@@ -89,6 +94,19 @@ void rtc_isr(void)
 
 	//Give semaphore here to periodic task
 	xSemaphoreGiveFromISR( xSemaphoreRTCWakeup, &xHigherPriorityTaskWoken );
+
+	portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+}
+
+void usart2_isr(void)
+{
+	char usart2_data;
+
+	BaseType_t xHigherPriorityTaskWoken;
+
+	usart2_data = usart_recv(USART2);
+
+	xQueueSendFromISR( xUART2RxQueue, &usart2_data, &xHigherPriorityTaskWoken );
 
 	portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
@@ -102,19 +120,22 @@ int main(int argc, char* argv[])
 
 	xADCQueue = xQueueCreate( ADC_QUEUE_LENGTH, sizeof( uint16_t ) );
 
-	//Create UART queue for writing to UART gatekeeper task
+	//UART1 queue for writing to UART gatekeeper task
 	xUARTQueue = xQueueCreate( UART_QUEUE_LENGTH, sizeof( char ) );
+
+	//UART2 queue for reading from UART2 (Maxbotix serial sonar)
+	xUART2RxQueue = xQueueCreate( UART_QUEUE_LENGTH, sizeof( char ) );
 
 	xTemperatureQueue = xQueueCreate( TEMPERATURE_QUEUE_LENGTH, sizeof( uint16_t ) );
 
 	//Initialize board hardware
 	vInitHardware();
 
-	if( (xSemaphoreRTCWakeup != NULL) && (xUARTQueue != NULL) && (xADCQueue != NULL) && (xTemperatureQueue != NULL))
+	if( (xSemaphoreRTCWakeup != NULL) && (xUARTQueue != NULL) && (xADCQueue != NULL) && (xTemperatureQueue != NULL) && (xUART2RxQueue != NULL))
 	{
 		//If all semaphores and queues were successfully created, then create tasks
 
-		xTaskCreate( prvUARTGatekeeperTask,					/* The function that implements the task. */
+		xTaskCreate( prvUART1TxGatekeeperTask,					/* The function that implements the task. */
 					"UGK", 									/* The text name assigned to the task - for debug only as it is not used by the kernel. */
 					configMINIMAL_STACK_SIZE, 				/* The size of the stack to allocate to the task. */
 					NULL, 									/* The parameter passed to the task - if present. */
@@ -124,6 +145,8 @@ int main(int argc, char* argv[])
 		xTaskCreate( prvTemperatureCalculationTask, "ADC", configMINIMAL_STACK_SIZE, NULL, TEMPERATURE_CALCULATION_TASK_PRIORITY, NULL );
 
 		xTaskCreate( prvRTCWakeupTask, "RTC", configMINIMAL_STACK_SIZE, NULL, RTC_WAKEUP_TASK_PRIORITY, NULL );
+
+		xTaskCreate( prvUART2RxTask, "RX2", configMINIMAL_STACK_SIZE, NULL, UART2RX_TASK_PRIORITY, NULL );
 
 		//Start FreeRTOS scheduler
 		vTaskStartScheduler();
@@ -256,7 +279,7 @@ static void prvRTCWakeupTask( void *pvParameters )
 
 /*-----------------------------------------------------------*/
 
-static void prvUARTGatekeeperTask( void *pvParameters )
+static void prvUART1TxGatekeeperTask( void *pvParameters )
 {
 	char new_char;
 
@@ -265,6 +288,19 @@ static void prvUARTGatekeeperTask( void *pvParameters )
 		xQueueReceive( xUARTQueue, &new_char, portMAX_DELAY );
 
 		usart_send_blocking(USART1, new_char);
+	}
+}
+
+static void prvUART2RxTask( void *pvParameters )
+{
+	char new_char;
+
+	for( ;; )
+	{
+		xQueueReceive( xUART2RxQueue, &new_char, portMAX_DELAY );
+
+		//Get from queue and parse MaxSonar data
+
 	}
 }
 /*-----------------------------------------------------------*/

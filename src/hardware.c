@@ -196,12 +196,15 @@ void vInitHardware(void)
 	//todo: Send data to USART1 using DMA
 
 	//USART2
-	usart_set_baudrate(USART2, 115200);
+	usart_set_baudrate(USART2, 9600 /*115200*/);
 	usart_set_databits(USART2, 8);
 	usart_set_parity(USART2, USART_PARITY_NONE);
 	usart_set_stopbits(USART2, USART_CR2_STOP_1_0BIT);
 	usart_set_mode(USART2, USART_MODE_RX);						//Receive only :)
 	usart_set_flow_control(USART2, USART_FLOWCONTROL_NONE);
+
+	//USART2 RX inverted to conform LV-ProxSonar-EZ TX polarity.
+	USART2_CR2 |= USART_CR2_RXINV;
 
 	usart_enable(USART2);
 
@@ -325,6 +328,12 @@ void rcc_clock_setup_in_hse_out_48mhz(void)
 	rcc_ahb_frequency = 48000000;
 
 	SystemCoreClock = 48000000;
+}
+
+void vSetLEDS(uint8_t mask, uint8_t value)
+{
+	GPIOC_BRR = (uint16_t)((mask & GPIOC_LEDS_MASK) << GPIOC_LEDS_SHIFT);
+	GPIOC_BSRR = (uint32_t)((value & GPIOC_LEDS_MASK) << GPIOC_LEDS_SHIFT);
 }
 
 

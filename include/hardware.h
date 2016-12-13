@@ -17,13 +17,19 @@
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/cm3/nvic.h>
 
-typedef enum tDiscoLEDs
-{
-	disco_led1 = 0,
-	disco_led2,
-	disco_led3,
-	disco_led4
-};
+#define GPIOC_LEDS_SHIFT	6
+#define GPIOC_LEDS_MASK		0xF
+
+#define LED_RED 	GPIO6
+#define LED_BLUE 	GPIO7
+#define LED_AMBER 	GPIO8
+#define LED_GREEN 	GPIO9
+
+#define LED1 	(1 << 0)
+#define LED2 	(1 << 1)
+#define LED3 	(1 << 2)
+#define LED4 	(1 << 3)
+
 
 //Priority levels for STM32F0. The less numeric value for more urgent interrupt, e.g. nvic_pr_0 = 0x00 for ultimate urgency.
 typedef enum tCM0_NVIC_Priority
@@ -82,5 +88,7 @@ void rtc_set_datetime(const DateTime_t *datetime);
 void rcc_rtc_select_clock(uint32_t clock);
 
 void rcc_clock_setup_in_hse_out_48mhz(void);
+
+void vSetLEDS(uint8_t mask, uint8_t value);
 
 #endif /* HARDWARE_H */

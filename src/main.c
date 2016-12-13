@@ -21,11 +21,10 @@
 #include "queue.h"
 
 #define DAY_OF_WEEK_NAME_SIZE		3
-const char* const DayOfWeekName[] = {"---", "MON", "TUE" , "WED", "THU", "FRI", "SAT", "SUN"};
 
 #define ADC_RESULT_APPROX_COUNT		8	//Constant for moving average method
 
-#define partstMAX_LEDS		4
+#define PROXSONAR_BUFFER_SIZE		8
 
 
 //Task priorities
@@ -35,13 +34,15 @@ const char* const DayOfWeekName[] = {"---", "MON", "TUE" , "WED", "THU", "FRI", 
 #define	UART2RX_TASK_PRIORITY						( tskIDLE_PRIORITY + 2 )
 
 
-
-#define UART_QUEUE_LENGTH					( 64 )
-#define ADC_QUEUE_LENGTH					( 1 )
+#define UART_QUEUE_LENGTH						( 64 )
+#define UART2RX_QUEUE_LENGTH					( 1 )
+#define ADC_QUEUE_LENGTH						( 1 )
 #define TEMPERATURE_QUEUE_LENGTH				( 1 )
 
 /*-----------------------------------------------------------*/
 
+//Array to convert day of week number from RTC to human readable format
+const char* const DayOfWeekName[] = {"---", "MON", "TUE" , "WED", "THU", "FRI", "SAT", "SUN"};
 
 /*-----------------------------------------------------------*/
 
@@ -106,6 +107,14 @@ void usart2_isr(void)
 
 	usart2_data = usart_recv(USART2);
 
+	//If overrun happened
+	if(usart_get_flag(USART2, USART_ISR_ORE))
+	{
+		//Clear overrun flag
+		USART2_ICR |= USART_ICR_ORECF;
+
+	}
+
 	xQueueSendFromISR( xUART2RxQueue, &usart2_data, &xHigherPriorityTaskWoken );
 
 	portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
@@ -124,7 +133,7 @@ int main(int argc, char* argv[])
 	xUARTQueue = xQueueCreate( UART_QUEUE_LENGTH, sizeof( char ) );
 
 	//UART2 queue for reading from UART2 (Maxbotix serial sonar)
-	xUART2RxQueue = xQueueCreate( UART_QUEUE_LENGTH, sizeof( char ) );
+	xUART2RxQueue = xQueueCreate( UART2RX_QUEUE_LENGTH, sizeof( char ) );
 
 	xTemperatureQueue = xQueueCreate( TEMPERATURE_QUEUE_LENGTH, sizeof( uint16_t ) );
 
@@ -146,7 +155,7 @@ int main(int argc, char* argv[])
 
 		xTaskCreate( prvRTCWakeupTask, "RTC", configMINIMAL_STACK_SIZE, NULL, RTC_WAKEUP_TASK_PRIORITY, NULL );
 
-		xTaskCreate( prvUART2RxTask, "RX2", configMINIMAL_STACK_SIZE, NULL, UART2RX_TASK_PRIORITY, NULL );
+		xTaskCreate( prvUART2RxTask, "RX2", configMINIMAL_STACK_SIZE, NULL, UART2RX_TASK_PRIORITY + 1, NULL );
 
 		//Start FreeRTOS scheduler
 		vTaskStartScheduler();
@@ -295,11 +304,65 @@ static void prvUART2RxTask( void *pvParameters )
 {
 	char new_char;
 
+	uint8_t digit_position = 0;
+
+	uint16_t distance_inches = 0;
+
 	for( ;; )
 	{
+		//Get from queue and parse ProxSonar data
 		xQueueReceive( xUART2RxQueue, &new_char, portMAX_DELAY );
 
-		//Get from queue and parse MaxSonar data
+		//Maxbotix LV-ProxSonar-EZ output data format: <R><hundreds><tens><units><whitespace><P><1 or 0 (proximity)><carriage return>
+		//Example: "R008 P1\r" - Target detected at 8 inches.
+
+		//This should be faster than strtoul()
+		if(new_char == 'R')
+		{
+			digit_position = 0;
+			distance_inches = 0;
+		} else
+		{
+			if((new_char >= '0') && (new_char <= '9') && (digit_position < 3))
+			{
+				if(digit_position == 0)
+					distance_inches += 100*(new_char - '0');
+				else
+				if(digit_position == 1)
+					distance_inches += 10*(new_char - '0');
+				else
+				if(digit_position == 2)
+					distance_inches += 1*(new_char - '0');
+
+				digit_position++;
+			} else
+			{
+				if(new_char == ' ')
+				{
+					if(distance_inches < 20) // Target is located between ~ 0..50 cm
+					{
+						vSetLEDS(LED1 | LED2 | LED3 | LED4, LED1 | LED2 | LED3 | LED4);
+					} else
+					if((distance_inches >= 20) && (distance_inches <= 39)) // ~ 50..100 cm
+					{
+						vSetLEDS(LED1 | LED2 | LED3 | LED4, LED1 | LED2 | LED3);
+					} else
+					if((distance_inches > 39) && (distance_inches <= 59)) // ~ 100..150 cm
+					{
+						vSetLEDS(LED1 | LED2 | LED3 | LED4, LED1 | LED2);
+					} else
+					if((distance_inches > 60) && (distance_inches < 79)) // ~ 150..200 cm
+					{
+						vSetLEDS(LED1 | LED2 | LED3 | LED4, LED1);
+					} else												// ~ > 200 cm
+						vSetLEDS(LED1 | LED2 | LED3 | LED4, 0);
+				}
+
+				digit_position = 0;
+				distance_inches = 0;
+			}
+		}
+
 
 	}
 }

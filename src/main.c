@@ -20,6 +20,13 @@
 #include "semphr.h"
 #include "queue.h"
 
+//FreeModbus library includes
+#include "mb.h"
+#include "mbport.h"
+
+//FreeModbus port includes
+#include "port.h"
+
 #define DAY_OF_WEEK_NAME_SIZE		3
 
 #define ADC_RESULT_APPROX_COUNT		8	//Constant for moving average method
@@ -28,16 +35,26 @@
 
 
 //Task priorities
-#define UART_GATEKEEPER_TASK_PRIORITY				( tskIDLE_PRIORITY + 2 )
-#define TEMPERATURE_CALCULATION_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
-#define	RTC_WAKEUP_TASK_PRIORITY					( tskIDLE_PRIORITY + 1 )
-#define	UART2RX_TASK_PRIORITY						( tskIDLE_PRIORITY + 2 )
+#define TASK_PRIORITY_UART_GATEKEEPER				( tskIDLE_PRIORITY + 2 )
+#define TASK_PRIORITY_TEMPERATURE_CALCULATION		( tskIDLE_PRIORITY + 2 )
+#define	TASK_PRIORITY_RTC_WAKEUP					( tskIDLE_PRIORITY + 1 )
+#define	TASK_PRIORITY_UART2RX						( tskIDLE_PRIORITY + 3 )
+#define TASK_PRIORITY_MODBUS            			( tskIDLE_PRIORITY + 3 )
+
+//Task stack sizes
+#define TASK_MODBUS_STACK_SIZE         				( 256 )
+
+//Queue lengths
+#define UART_QUEUE_LENGTH							( 64 )
+#define UART2RX_QUEUE_LENGTH						( 1 )
+#define ADC_QUEUE_LENGTH							( 1 )
+#define TEMPERATURE_QUEUE_LENGTH					( 1 )
 
 
-#define UART_QUEUE_LENGTH						( 64 )
-#define UART2RX_QUEUE_LENGTH					( 1 )
-#define ADC_QUEUE_LENGTH						( 1 )
-#define TEMPERATURE_QUEUE_LENGTH				( 1 )
+extern volatile USHORT usRegInputStart;
+extern volatile USHORT usRegInputBuf[];
+extern volatile USHORT usRegHoldingStart;
+extern volatile USHORT usRegHoldingBuf[];
 
 /*-----------------------------------------------------------*/
 
@@ -62,6 +79,8 @@ static void prvRTCWakeupTask( void *pvParameters );
 static void prvUART1TxGatekeeperTask( void *pvParameters );
 
 static void prvUART2RxTask( void *pvParameters );
+
+static void	prvMODBUSTask( void *pvParameters );
 
 //ADC1 interrupt service routine (EOC)
 void adc_comp_isr(void)
@@ -112,7 +131,6 @@ void usart2_isr(void)
 	{
 		//Clear overrun flag
 		USART2_ICR |= USART_ICR_ORECF;
-
 	}
 
 	xQueueSendFromISR( xUART2RxQueue, &usart2_data, &xHigherPriorityTaskWoken );
@@ -148,14 +166,17 @@ int main(int argc, char* argv[])
 					"UGK", 									/* The text name assigned to the task - for debug only as it is not used by the kernel. */
 					configMINIMAL_STACK_SIZE, 				/* The size of the stack to allocate to the task. */
 					NULL, 									/* The parameter passed to the task - if present. */
-					TEMPERATURE_CALCULATION_TASK_PRIORITY, 		/* The priority assigned to the task. */
+					TASK_PRIORITY_TEMPERATURE_CALCULATION, 		/* The priority assigned to the task. */
 					NULL );									/* The task handle is not required, so NULL is passed. */
 
-		xTaskCreate( prvTemperatureCalculationTask, "ADC", configMINIMAL_STACK_SIZE, NULL, TEMPERATURE_CALCULATION_TASK_PRIORITY, NULL );
+		xTaskCreate( prvTemperatureCalculationTask, "ADC", configMINIMAL_STACK_SIZE, NULL, TASK_PRIORITY_TEMPERATURE_CALCULATION, NULL );
 
-		xTaskCreate( prvRTCWakeupTask, "RTC", configMINIMAL_STACK_SIZE, NULL, RTC_WAKEUP_TASK_PRIORITY, NULL );
+		xTaskCreate( prvRTCWakeupTask, "RTC", configMINIMAL_STACK_SIZE, NULL, TASK_PRIORITY_RTC_WAKEUP, NULL );
 
-		xTaskCreate( prvUART2RxTask, "RX2", configMINIMAL_STACK_SIZE, NULL, UART2RX_TASK_PRIORITY + 1, NULL );
+		xTaskCreate( prvUART2RxTask, "RX2", configMINIMAL_STACK_SIZE, NULL, TASK_PRIORITY_UART2RX, NULL );
+
+
+		xTaskCreate( prvMODBUSTask, "MBS", TASK_MODBUS_STACK_SIZE, NULL, TASK_PRIORITY_MODBUS, NULL );
 
 		//Start FreeRTOS scheduler
 		vTaskStartScheduler();
@@ -366,6 +387,50 @@ static void prvUART2RxTask( void *pvParameters )
 
 	}
 }
+
+
+
+static void prvMODBUSTask( void *pvParameters )
+{
+	const UCHAR ucSlaveID[] = { 0xAA, 0xBB, 0xCC };
+	eMBErrorCode eStatus;
+
+	for( ;; )
+	{
+		if( MB_ENOERR != ( eStatus = eMBInit( MB_ASCII, 0x0A, 1, 38400, MB_PAR_EVEN ) ) )
+		{
+			/* Can not initialize. Add error handling code here. */
+		}
+		else
+		{
+			if( MB_ENOERR != ( eStatus = eMBSetSlaveID( 0x34, TRUE, ucSlaveID, 3 ) ) )
+			{
+				/* Can not set slave id. Check arguments */
+			}
+			else if( MB_ENOERR != ( eStatus = eMBEnable(  ) ) )
+			{
+				/* Enable failed. */
+			}
+			else
+			{
+				usRegHoldingBuf[0] = 1;
+				do
+				{
+					( void )eMBPoll(  );
+
+					/* Here we simply count the number of poll cycles. */
+					usRegInputBuf[0]++;
+				}
+				while( usRegHoldingBuf[0] );
+			}
+			( void )eMBDisable(  );
+			( void )eMBClose(  );
+		}
+		vTaskDelay( 50 );
+	}
+}
+
+
 /*-----------------------------------------------------------*/
 
 

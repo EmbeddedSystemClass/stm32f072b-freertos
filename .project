@@ -26,9 +26,24 @@
 	</natures>
 	<linkedResources>
 		<link>
+			<name>FreeModbus</name>
+			<type>2</type>
+			<locationURI>FREEMODBUS_PATH</locationURI>
+		</link>
+		<link>
 			<name>FreeRTOS</name>
 			<type>2</type>
-			<location>/home/frost/hover8/FreeRTOSv9.0.0/FreeRTOS/Source</location>
+			<locationURI>FREERTOS_PATH/Source</locationURI>
 		</link>
 	</linkedResources>
+	<variableList>
+		<variable>
+			<name>FREEMODBUS_PATH</name>
+			<value>file:/home/frost/hover8/freemodbus</value>
+		</variable>
+		<variable>
+			<name>FREERTOS_PATH</name>
+			<value>file:/home/frost/hover8/FreeRTOSv9.0.0/FreeRTOS</value>
+		</variable>
+	</variableList>
 </projectDescription>

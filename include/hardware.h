@@ -30,6 +30,16 @@
 #define LED3 	(1 << 2)
 #define LED4 	(1 << 3)
 
+#define USART1_PORT 		GPIOA
+#define USART1_PORT_TX		GPIO9
+
+#define USART2_PORT 		GPIOA
+#define USART2_PORT_RX		GPIO15
+
+#define USART3_PORT 		GPIOB
+#define USART3_PORT_TX		GPIO10
+#define USART3_PORT_RX		GPIO11
+
 
 //Priority levels for STM32F0. The less numeric value for more urgent interrupt, e.g. nvic_pr_0 = 0x00 for ultimate urgency.
 typedef enum tCM0_NVIC_Priority

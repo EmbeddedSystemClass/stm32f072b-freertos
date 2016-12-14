@@ -397,12 +397,15 @@ static void prvMODBUSTask( void *pvParameters )
 
 	for( ;; )
 	{
-		if( MB_ENOERR != ( eStatus = eMBInit( MB_ASCII, 0x0A, 1, 38400, MB_PAR_EVEN ) ) )
+		/* Initialize MODBUS. ASCII Mode, Slave address 10, Port 1, baud rate, no parity. */
+		if( MB_ENOERR != ( eStatus = eMBInit( MB_ASCII, 0x0A, 1, 38400, MB_PAR_NONE ) ) )
 		{
 			/* Can not initialize. Add error handling code here. */
 		}
 		else
 		{
+			/* Set the slave ID to 52, run indicator status byte is 0xFF and a 3 byte
+			additional field */
 			if( MB_ENOERR != ( eStatus = eMBSetSlaveID( 0x34, TRUE, ucSlaveID, 3 ) ) )
 			{
 				/* Can not set slave id. Check arguments */

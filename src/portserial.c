@@ -12,6 +12,12 @@
 #include <queue.h>
 
 /* ----------------------- libopencm3 STM32F includes -------------------------------*/
+#include <libopencm3/cm3/nvic.h>
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/usart.h>
+
+/* ----------------------- libopencm3 STM32F includes -------------------------------*/
 #include "libopencm3/cm3/nvic.h"
 #include "libopencm3/stm32/gpio.h"
 #include "libopencm3/stm32/rcc.h"
@@ -47,9 +53,76 @@ void vMBPortSerialEnable( BOOL xRxEnable, BOOL xTxEnable )
 }
 
 
+/* ----------------------- Initialize USART ----------------------------------*/
+
 BOOL xMBPortSerialInit( UCHAR ucPORT, ULONG ulBaudRate, UCHAR ucDataBits, eMBParity eParity )
 {
-	#warning "to be implemented"
+	BOOL bStatus;
+
+	// ---- WTF? ---- Oddity of STM32F series: word length includes parity. 7 bits no parity not possible
+	CHAR wordLength;
+
+	/* Enable clock for USART3. */
+	rcc_periph_clock_enable(RCC_USART3);
+
+	/* Enable the USART3 interrupt. */
+	nvic_enable_irq(NVIC_USART3_4_IRQ);
+
+	/* Setup UART parameters. */
+	usart_set_baudrate(USART3, ulBaudRate);
+	usart_set_stopbits(USART3, USART_CR2_STOP_1_0BIT);
+	usart_set_flow_control(USART3, USART_FLOWCONTROL_NONE);
+	usart_set_mode(USART3, USART_MODE_TX_RX);
+
+	bStatus = TRUE;
+
+	switch ( eParity )
+	{
+		case MB_PAR_NONE:
+			usart_set_parity(USART3, USART_PARITY_NONE);
+			break;
+		case MB_PAR_ODD:
+			usart_set_parity(USART3, USART_PARITY_ODD);
+			break;
+		case MB_PAR_EVEN:
+			usart_set_parity(USART3, USART_PARITY_EVEN);
+			break;
+		default:
+			bStatus = FALSE;
+			break;
+	}
+
+	switch ( ucDataBits )
+	{
+		case 8:
+			if (eParity == MB_PAR_NONE)
+				wordLength = 8;
+			else
+				wordLength = 9;
+			usart_set_databits(USART3, wordLength);
+			break;
+		case 7:
+			if (eParity == MB_PAR_NONE)
+				{
+					wordLength = 8;
+					//bStatus = FALSE;
+					usart_set_databits(USART3, 8);
+				}
+			else
+				usart_set_databits(USART3, 8);
+			break;
+		default:
+			bStatus = FALSE;
+	}
+
+	if( bStatus == TRUE )
+	{
+		/* Finally enable the USART. */
+		usart_disable_rx_interrupt(USART3);
+		usart_disable_tx_interrupt(USART3);
+		usart_enable(USART3);
+	}
+	return bStatus;
 }
 
 /* ----------------------- Close Serial Port ----------------------------------*/

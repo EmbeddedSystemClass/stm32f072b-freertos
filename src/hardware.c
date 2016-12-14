@@ -56,6 +56,7 @@ void vInitHardware(void)
 	//nvic_set_priority(NVIC_SYSTICK_IRQ, nvic_pr_1);
 
 	rcc_periph_clock_enable(RCC_GPIOA);
+	rcc_periph_clock_enable(RCC_GPIOB);
 	rcc_periph_clock_enable(RCC_GPIOC);
 	rcc_periph_clock_enable(RCC_ADC1);
 	rcc_periph_clock_enable(RCC_USART1);
@@ -79,12 +80,16 @@ void vInitHardware(void)
 	gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO6 | GPIO7 | GPIO8 | GPIO9);
 
 	//USART1 TX on PA9
-	gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO9);
-	gpio_set_af(GPIOA, GPIO_AF1, GPIO9);
+	gpio_mode_setup(USART1_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USART1_PORT_TX);
+	gpio_set_af(USART1_PORT, GPIO_AF1, USART1_PORT_TX);
 
 	//USART2 RX on PA15
-	gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO15);
-	gpio_set_af(GPIOA, GPIO_AF1, GPIO15);
+	gpio_mode_setup(USART2_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USART2_PORT_RX);
+	gpio_set_af(USART2_PORT, GPIO_AF1, USART2_PORT_RX);
+
+	//USART3 TX & RX on PB10, PB11
+	gpio_mode_setup(USART3_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, USART3_PORT_TX | USART3_PORT_RX);
+	gpio_set_af(USART3_PORT, GPIO_AF4, USART3_PORT_TX | USART3_PORT_RX);
 
 
 	//**************** EXTI initialization ****************

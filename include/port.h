@@ -47,7 +47,8 @@
 
 typedef uint8_t BOOL;
 
-typedef unsigned char UCHAR;
+//typedef unsigned char UCHAR;
+typedef uint8_t UCHAR;
 typedef char    CHAR;
 
 typedef uint16_t USHORT;

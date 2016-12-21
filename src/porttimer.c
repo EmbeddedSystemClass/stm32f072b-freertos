@@ -30,6 +30,10 @@ BOOL xMBPortTimersInit( USHORT usTim1Timerout50us )
 {
 	/* Enable TIM2 clock. */
 	rcc_periph_clock_enable(RCC_TIM2);
+
+	TIM2_SR &= ~TIM_SR_UIF;
+	nvic_clear_pending_irq(NVIC_TIM2_IRQ);
+
  	nvic_enable_irq(NVIC_TIM2_IRQ);
 	timer_reset(TIM2);
 
@@ -45,6 +49,10 @@ BOOL xMBPortTimersInit( USHORT usTim1Timerout50us )
 void vMBPortTimerClose( void )
 {
 	timer_disable_irq(TIM2, TIM_DIER_UIE);
+
+	TIM2_SR &= ~TIM_SR_UIF;
+	nvic_clear_pending_irq(NVIC_TIM2_IRQ);
+
 	timer_disable_counter(TIM2);
 }
 
@@ -53,6 +61,10 @@ void vMBPortTimersEnable(  )
 {
 	/* Restart the timer with the period value set in xMBPortTimersInit( ) */
 	TIM2_CNT = 0;
+
+	TIM2_SR &= ~TIM_SR_UIF;
+	nvic_clear_pending_irq(NVIC_TIM2_IRQ);
+
 	timer_enable_irq(TIM2, TIM_DIER_UIE);
 	timer_enable_counter(TIM2);
 }
@@ -61,6 +73,10 @@ void vMBPortTimersEnable(  )
 void vMBPortTimersDisable(  )
 {
 	timer_disable_irq(TIM2, TIM_DIER_UIE);
+
+	TIM2_SR &= ~TIM_SR_UIF;
+	nvic_clear_pending_irq(NVIC_TIM2_IRQ);
+
 	timer_disable_counter(TIM2);
 }
 

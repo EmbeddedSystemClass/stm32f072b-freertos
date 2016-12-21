@@ -19,13 +19,6 @@ void putchar(char c)
 	usart_send_blocking(USART1, c);
 }
 
-//USB interrupt service routine
-void usb_isr(void)
-{
-	usbd_poll(usbd_dev);
-}
-
-
 //Hardware initialization routine
 void vInitHardware(void)
 {

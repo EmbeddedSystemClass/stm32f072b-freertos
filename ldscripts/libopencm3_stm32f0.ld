@@ -33,6 +33,11 @@ SECTIONS
 	.text : {
 		*(.vectors)	/* Vector table */
 		*(.text*)	/* Program code */
+		*(.eh_frame)		
+		
+		KEEP (*(.init))
+    	KEEP (*(.fini))
+		
 		. = ALIGN(4);
 		*(.rodata*)	/* Read-only data */
 		. = ALIGN(4);
@@ -47,11 +52,13 @@ SECTIONS
 		__preinit_array_end = .;
 	} >rom
 	.init_array : {
-		. = ALIGN(4);
-		__init_array_start = .;
-		KEEP (*(SORT(.init_array.*)))
+		/*. = ALIGN(4);*/
+		/*__init_array_start = .;*/
+		PROVIDE_HIDDEN (__init_array_start = .);
+		KEEP (*(SORT(.init_array.*))) 
 		KEEP (*(.init_array))
-		__init_array_end = .;
+		/*__init_array_end = .;*/
+		PROVIDE_HIDDEN (__init_array_end = .);
 	} >rom
 	.fini_array : {
 		. = ALIGN(4);
@@ -77,13 +84,14 @@ SECTIONS
 	. = ALIGN(4);
 	_etext = .;
 
+	_data_loadaddr = LOADADDR(.data);
 	.data : {
 		_data = .;
 		*(.data*)	/* Read-write initialized data */
 		. = ALIGN(4);
 		_edata = .;
 	} >ram AT >rom
-	_data_loadaddr = LOADADDR(.data);
+	
 
 	.bss : {
 		*(.bss*)	/* Read-write zero initialized data */
@@ -119,56 +127,19 @@ SECTIONS
 	 * The .eh_frame section appears to be used for C++ exception handling.
 	 * You may need to fix this if you're using C++.
 	 */
-	/DISCARD/ : { *(.eh_frame) }
+	/DISCARD/ : { 
+	*(.eh_frame) 
+	libc.a ( * )
+    libm.a ( * )
+    libgcc.a ( * )
+	}
+	
+
+  .ARM.attributes 0 : { *(.ARM.attributes) }
 
 	. = ALIGN(4);
 	end = .;
 }
 
 PROVIDE(_stack = ORIGIN(ram) + LENGTH(ram));
-
-
-
-
-
-/* From sections.ld */
-
-/*
- * The '__stack' definition is required by crt0, do not remove it.
- */
-/* __stack = ORIGIN(RAM) + LENGTH(RAM); */
-__stack = _stack;
-
-_estack = __stack; 	/* STM specific definition */
-
-/*
- * Default stack sizes.
- * These are used by the startup in order to allocate stacks
- * for the different modes.
- */
-
-__Main_Stack_Size = 1024 ;
-
-PROVIDE ( _Main_Stack_Size = __Main_Stack_Size ) ;
-
-__Main_Stack_Limit = __stack  - __Main_Stack_Size ;
-
-/* "PROVIDE" allows to easily override these values from an
- * object file or the command line. */
-PROVIDE ( _Main_Stack_Limit = __Main_Stack_Limit ) ;
-
-/*
- * There will be a link error if there is not this amount of
- * RAM free at the end.
- */
-_Minimum_Stack_Size = 256 ;
-
-/*
- * Default heap definitions.
- * The heap start immediately after the last statically allocated
- * .sbss/.noinit section, and extends up to the main stack limit.
- */
- 
-PROVIDE ( _Heap_Begin = _end_noinit ) ;
-PROVIDE ( _Heap_Limit = __stack - __Main_Stack_Size ) ;
 

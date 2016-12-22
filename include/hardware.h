@@ -93,8 +93,17 @@ typedef struct tDateTimeStruct
 void vInitHardware(void);
 
 void rtc_get_datetime_struct(DateTime_t *datetime);
-void rtc_set_datetime(const DateTime_t *datetime);
 
+void rtc_set_datetime_dayofweek(const uint8_t value);
+void rtc_set_datetime_year(const uint8_t value);
+void rtc_set_datetime_month(const uint8_t value);
+void rtc_set_datetime_day(const uint8_t value);
+void rtc_set_datetime_hours(const uint8_t value);
+
+void rtc_set_datetime_minutes(const uint8_t value);
+void rtc_set_datetime_seconds(const uint8_t value);
+void rcc_rtc_select_clock(uint32_t clock);
+void rtc_set_datetime(const DateTime_t *datetime);
 void rcc_rtc_select_clock(uint32_t clock);
 
 void rcc_clock_setup_in_hse_out_48mhz(void);

@@ -10,9 +10,62 @@
 extern uint32_t rcc_ahb_frequency;
 extern uint32_t rcc_apb1_frequency;
 
-extern usbd_device *usbd_dev;
-
 volatile uint32_t SystemCoreClock = 0;
+
+//Used only in debug mode
+#ifdef DEBUG
+
+//From FreeRTOS example http://www.freertos.org/Debugging-Hard-Faults-On-Cortex-M-Microcontrollers.html
+
+void prvGetRegistersFromStack( uint32_t *pulFaultStackAddress )
+{
+	/* These are volatile to try and prevent the compiler/linker optimising them
+	away as the variables never actually get used.  If the debugger won't show the
+	values of the variables, make them global my moving their declaration outside
+	of this function. */
+
+	volatile uint32_t r0;
+	volatile uint32_t r1;
+	volatile uint32_t r2;
+	volatile uint32_t r3;
+	volatile uint32_t r12;
+	volatile uint32_t lr; /* Link register. */
+	volatile uint32_t pc; /* Program counter. */
+	volatile uint32_t psr;/* Program status register. */
+
+    r0 = pulFaultStackAddress[ 0 ];
+    r1 = pulFaultStackAddress[ 1 ];
+    r2 = pulFaultStackAddress[ 2 ];
+    r3 = pulFaultStackAddress[ 3 ];
+
+    r12 = pulFaultStackAddress[ 4 ];
+    lr = pulFaultStackAddress[ 5 ];
+    pc = pulFaultStackAddress[ 6 ];
+    psr = pulFaultStackAddress[ 7 ];
+
+    /* When the following line is hit, the variables contain the register values. */
+    for( ;; );
+}
+
+/* The fault handler implementation calls a function called prvGetRegistersFromStack(). */
+
+__attribute__((naked)) void hard_fault_handler(void)
+{
+	__asm(  ".syntax unified\n"
+			"MOVS   R0, #4  \n"
+			"MOV    R1, LR  \n"
+			"TST    R0, R1  \n"
+			"BEQ    _MSP    \n"
+			"MRS    R0, PSP \n"
+			"B      prvGetRegistersFromStack      \n"
+	"_MSP:  \n"
+			"MRS    R0, MSP \n"
+			"B      prvGetRegistersFromStack      \n"
+	".syntax divided\n") ;
+
+}
+
+#endif //Used only in debug mode
 
 void putchar(char c)
 {
@@ -38,7 +91,7 @@ void vInitHardware(void)
 	//Reset RTC and backup domain
 	RCC_BDCR |= RCC_BDCR_BDRST;
 
-	//simple delay
+	//Simple delay
 	for(i=0;i<10000;i++) {};
 
 	RCC_BDCR &= ~RCC_BDCR_BDRST;
@@ -62,9 +115,6 @@ void vInitHardware(void)
 	pwr_disable_backup_domain_write_protect();
 
 	rcc_periph_clock_enable(RCC_RTC);
-
-	//nvic_enable_irq(NVIC_USB_IRQ);
-	//rcc_periph_clock_enable(RCC_USB);
 
 	//User button
 	gpio_mode_setup(GPIOA, GPIO_MODE_INPUT, GPIO_PUPD_NONE, GPIO0);
@@ -225,8 +275,6 @@ void vInitHardware(void)
 
 
 	//**************** End of UART ports initialization ****************
-
-	//usb_cdc_hw_config();
 }
 
 void rtc_get_datetime_struct(DateTime_t *datetime)
@@ -284,10 +332,95 @@ void rtc_set_datetime(const DateTime_t *datetime)
 	RTC_DR = rtc_dr_new;
 }
 
+void rtc_set_datetime_dayofweek(const uint8_t value)
+{
+	uint32_t rtc_dr_new = 0;
+
+	rtc_dr_new |= (value & RTC_DR_WDU_MASK) << RTC_DR_WDU_SHIFT;
+
+	RTC_DR = rtc_dr_new;
+}
+
+void rtc_set_datetime_year(const uint8_t value)
+{
+	uint32_t rtc_dr_new = 0;
+
+	rtc_dr_new |= ((value / 10) & RTC_DR_YT_MASK) << RTC_DR_YT_SHIFT;
+	rtc_dr_new |= ((value % 10) & RTC_DR_YU_MASK) << RTC_DR_YU_SHIFT;
+
+	RTC_DR = rtc_dr_new;
+}
+
+void rtc_set_datetime_month(const uint8_t value)
+{
+	uint32_t rtc_dr_new = 0;
+
+	rtc_dr_new |= ((value / 10) & 0x01) << RTC_DR_MT_SHIFT;
+	rtc_dr_new |= ((value % 10) & RTC_DR_MU_MASK) << RTC_DR_MU_SHIFT;
+
+	RTC_DR = rtc_dr_new;
+}
+
+void rtc_set_datetime_day(const uint8_t value)
+{
+	uint32_t rtc_dr_new = 0;
+
+	rtc_dr_new |= ((value / 10) & RTC_DR_DT_MASK) << RTC_DR_DT_SHIFT;
+	rtc_dr_new |= ((value % 10) & RTC_DR_DU_MASK) << RTC_DR_DU_SHIFT;
+
+	RTC_DR = rtc_dr_new;
+}
+
+void rtc_set_datetime_hours(const uint8_t value)
+{
+	uint32_t rtc_tr_new = 0;
+
+	rtc_tr_new |= ((value / 10) & RTC_TR_HT_MASK) << RTC_TR_HT_SHIFT;
+	rtc_tr_new |= ((value % 10) & RTC_TR_HU_MASK) << RTC_TR_HU_SHIFT;
+
+	RTC_TR = rtc_tr_new;
+}
+
+void rtc_set_datetime_minutes(const uint8_t value)
+{
+	uint32_t rtc_tr_new = 0;
+
+	rtc_tr_new |= ((value / 10) & RTC_TR_MNT_MASK) << RTC_TR_MNT_SHIFT;
+	rtc_tr_new |= ((value % 10) & RTC_TR_MNU_MASK) << RTC_TR_MNU_SHIFT;
+
+	RTC_TR = rtc_tr_new;
+}
+
+void rtc_set_datetime_seconds(const uint8_t value)
+{
+	uint32_t rtc_tr_new = 0;
+
+	rtc_tr_new |= ((value / 10) & RTC_TR_ST_MASK) << RTC_TR_ST_SHIFT;
+	rtc_tr_new |= ((value % 10) & RTC_TR_SU_MASK) << RTC_TR_SU_SHIFT;
+
+	RTC_TR = rtc_tr_new;
+}
+
 void rcc_rtc_select_clock(uint32_t clock)
 {
+	uint32_t rtc_tr_new = 0;
+
 	RCC_BDCR &= ~(RCC_BDCR_RTCSEL_MASK << RCC_BDCR_RTCSEL_SHIFT);
 	RCC_BDCR |= (clock << RCC_BDCR_RTCSEL_SHIFT);
+
+	RTC_TR = rtc_tr_new;
+}
+
+void rtc_enter_init_mode(void)
+{
+	RTC_ISR |= RTC_ISR_INIT;
+	//Dirty
+	while ((RTC_ISR & RTC_ISR_INITF) == 0) {};
+}
+
+void rtc_exit_init_mode(void)
+{
+	RTC_ISR &= ~(RTC_ISR_INIT);
 }
 
 void rcc_clock_setup_in_hse_out_48mhz(void)

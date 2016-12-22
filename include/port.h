@@ -43,6 +43,16 @@
 #define ENTER_CRITICAL_SECTION( )   vMBPortEnterCritical()
 #define EXIT_CRITICAL_SECTION( )    vMBPortExitCritical()
 
+#define MB_HOLDINGREGS_DAYOFWEEK	10
+#define MB_HOLDINGREGS_YEAR			11
+#define MB_HOLDINGREGS_MONTH		12
+#define MB_HOLDINGREGS_DAY			13
+#define MB_HOLDINGREGS_HOUR			14
+#define MB_HOLDINGREGS_MINUTE		15
+#define MB_HOLDINGREGS_SECOND		16
+
+#define MB_INPUTGREGS_TEMP			10
+
 #define assert( x )
 
 typedef uint8_t BOOL;

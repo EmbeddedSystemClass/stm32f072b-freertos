@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 
-//#include <cdcacm.h>
-
 #include "hardware.h"
 
 //FreeRTOS kernel includes
@@ -137,79 +135,11 @@ void usart2_isr(void)
 	portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
-//From FreeRTOS example http://www.freertos.org/Debugging-Hard-Faults-On-Cortex-M-Microcontrollers.html
-
-void prvGetRegistersFromStack( uint32_t *pulFaultStackAddress )
-{
-	/* These are volatile to try and prevent the compiler/linker optimising them
-	away as the variables never actually get used.  If the debugger won't show the
-	values of the variables, make them global my moving their declaration outside
-	of this function. */
-
-	volatile uint32_t r0;
-	volatile uint32_t r1;
-	volatile uint32_t r2;
-	volatile uint32_t r3;
-	volatile uint32_t r12;
-	volatile uint32_t lr; /* Link register. */
-	volatile uint32_t pc; /* Program counter. */
-	volatile uint32_t psr;/* Program status register. */
-
-    r0 = pulFaultStackAddress[ 0 ];
-    r1 = pulFaultStackAddress[ 1 ];
-    r2 = pulFaultStackAddress[ 2 ];
-    r3 = pulFaultStackAddress[ 3 ];
-
-    r12 = pulFaultStackAddress[ 4 ];
-    lr = pulFaultStackAddress[ 5 ];
-    pc = pulFaultStackAddress[ 6 ];
-    psr = pulFaultStackAddress[ 7 ];
-
-    /* When the following line is hit, the variables contain the register values. */
-    for( ;; );
-}
-
-/* The fault handler implementation calls a function called prvGetRegistersFromStack(). */
-
-__attribute__((naked)) void hard_fault_handler(void)
-{
-	__asm(  ".syntax unified\n"
-			"MOVS   R0, #4  \n"
-			"MOV    R1, LR  \n"
-			"TST    R0, R1  \n"
-			"BEQ    _MSP    \n"
-			"MRS    R0, PSP \n"
-			"B      prvGetRegistersFromStack      \n"
-	"_MSP:  \n"
-			"MRS    R0, MSP \n"
-			"B      prvGetRegistersFromStack      \n"
-	".syntax divided\n") ;
-
-}
-
 
 // ----- main() ---------------------------------------------------------------
 
-static uint8_t arr_a[10];
-static uint8_t *arr_b = arr_a;
-
 int main(int argc, char* argv[])
 {
-	const static char tst1[4] = {'a', 'b', 'c', 'd'};
-	char tst2[4];// = {'a', 'b', 'c', 'd'};
-	const static uint8_t tst3[] = {1, 2, 3, 4};
-	static char tst4[4] = {'a', 'b', 'c', 'd'};
-
-	if(tst1[0] || tst2[0] || tst3[0] || tst4[0])
-	{
-		tst2[1] = 0;
-	}
-
-	volatile uint8_t *local_a = arr_a;
-	volatile uint8_t *local_b = arr_b;
-	volatile uint8_t *local_c = local_b;
-
-
 
 	xSemaphoreRTCWakeup = xSemaphoreCreateBinary();
 
@@ -366,6 +296,24 @@ static void prvRTCWakeupTask( void *pvParameters )
 			{
 				xQueueSend( xUARTQueue, &message[i], 0U );
 			}
+
+			//Write date/time values to ModBus holding registers, temperature - to input register.
+
+			//Disable scheduler to prevent switching to ModBus task while modifying registers
+			taskENTER_CRITICAL();
+
+			usRegHoldingBuf[MB_HOLDINGREGS_DAYOFWEEK] = datetime.dayOfWeek;
+			usRegHoldingBuf[MB_HOLDINGREGS_YEAR] = datetime.year;
+			usRegHoldingBuf[MB_HOLDINGREGS_MONTH] = datetime.months;
+			usRegHoldingBuf[MB_HOLDINGREGS_DAY] = datetime.days;
+			usRegHoldingBuf[MB_HOLDINGREGS_HOUR] = datetime.hours;
+			usRegHoldingBuf[MB_HOLDINGREGS_MINUTE] = datetime.minutes;
+			usRegHoldingBuf[MB_HOLDINGREGS_SECOND] = datetime.seconds;
+
+			usRegInputBuf[MB_INPUTGREGS_TEMP] = temperature; //temperature in Celsius degrees, multiplied by 10.
+
+			//Enable task switching
+			taskEXIT_CRITICAL();
 
 			//Manually start next ADC conversion
 			adc_start_conversion_regular(ADC1);

@@ -13,7 +13,6 @@
 #include <task.h>
 #include <semphr.h>
 
-
 //Modbus related defines
 #define REG_INPUT_START                 ( 1000 )
 #define REG_INPUT_NREGS                 ( 64 )
@@ -21,7 +20,7 @@
 #define REG_HOLDING_START               ( 1 )
 #define REG_HOLDING_NREGS               ( 32 )
 
-//Modbus registers/coils arrays
+//Modbus register/coil arrays
 volatile USHORT usRegInputStart = REG_INPUT_START;
 volatile USHORT usRegInputBuf[REG_INPUT_NREGS];
 volatile USHORT usRegHoldingStart = REG_HOLDING_START;
@@ -79,6 +78,64 @@ eMBErrorCode eMBRegHoldingCB( UCHAR * pucRegBuffer, USHORT usAddress, USHORT usN
             {
                 usRegHoldingBuf[iRegIndex] = *pucRegBuffer++ << 8;
                 usRegHoldingBuf[iRegIndex] |= *pucRegBuffer++;
+
+                if((iRegIndex >= MB_HOLDINGREGS_DAYOFWEEK) && (iRegIndex <= MB_HOLDINGREGS_SECOND))
+                {
+					//Dirty hack to write to ModBus holding registers
+					//Disable scheduler to prevent task switching
+					taskENTER_CRITICAL();
+
+					//Unlock RTC here
+					rtc_unlock();
+
+					//Enter RTC Init mode
+					rtc_enter_init_mode();
+
+					switch(iRegIndex)
+					{
+						case MB_HOLDINGREGS_DAYOFWEEK:
+							rtc_set_datetime_dayofweek(usRegHoldingBuf[iRegIndex]);
+							break;
+
+						case MB_HOLDINGREGS_YEAR:
+							rtc_set_datetime_year(usRegHoldingBuf[iRegIndex]);
+							break;
+
+						case MB_HOLDINGREGS_MONTH:
+							rtc_set_datetime_month(usRegHoldingBuf[iRegIndex]);
+							break;
+
+						case MB_HOLDINGREGS_DAY:
+							rtc_set_datetime_day(usRegHoldingBuf[iRegIndex]);
+							break;
+
+						case MB_HOLDINGREGS_HOUR:
+							rtc_set_datetime_hours(usRegHoldingBuf[iRegIndex]);
+							break;
+
+						case MB_HOLDINGREGS_MINUTE:
+							rtc_set_datetime_minutes(usRegHoldingBuf[iRegIndex]);
+							break;
+
+						case MB_HOLDINGREGS_SECOND:
+							rtc_set_datetime_seconds(usRegHoldingBuf[iRegIndex]);
+							break;
+
+						default:
+							break;
+
+					};
+
+					//Exit Init mode
+					rtc_exit_init_mode();
+
+					//Lock RTC
+					rtc_lock();
+
+					//Enable scheduler
+					taskEXIT_CRITICAL();
+                }
+
                 iRegIndex++;
                 usNRegs--;
             }

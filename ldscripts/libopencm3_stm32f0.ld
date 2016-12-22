@@ -31,34 +31,42 @@ ENTRY(reset_handler)
 SECTIONS
 {
 	.text : {
+		. = ALIGN(4);
 		*(.vectors)	/* Vector table */
-		*(.text*)	/* Program code */
-		*(.eh_frame)		
-		
-		KEEP (*(.init))
-    	KEEP (*(.fini))
-		
-		. = ALIGN(4);
-		*(.rodata*)	/* Read-only data */
-		. = ALIGN(4);
+	    *(.text)           /* .text sections (code) */
+	    *(.text*)          /* .text* sections (code) */
+	    *(.glue_7)         /* glue arm to thumb code */
+	    *(.glue_7t)        /* glue thumb to arm code */
+	    *(.eh_frame)
+	
+	    KEEP (*(.init))
+	    KEEP (*(.fini))
+		    
 	} >rom
+
+/* Constant data goes into FLASH */
+  .rodata :
+  {
+    . = ALIGN(4);
+    *(.rodata)         /* .rodata sections (constants, strings, etc.) */
+    *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
+    . = ALIGN(4);
+  } >rom
 
 	/* C++ Static constructors/destructors, also used for __attribute__
 	 * ((constructor)) and the likes */
 	.preinit_array : {
 		. = ALIGN(4);
-		__preinit_array_start = .;
+		PROVIDE_HIDDEN (__preinit_array_start = .);
 		KEEP (*(.preinit_array))
-		__preinit_array_end = .;
+		  PROVIDE_HIDDEN (__preinit_array_end = .);
 	} >rom
 	.init_array : {
-		/*. = ALIGN(4);*/
-		/*__init_array_start = .;*/
-		PROVIDE_HIDDEN (__init_array_start = .);
-		KEEP (*(SORT(.init_array.*))) 
+		. = ALIGN(4);
+		__init_array_start = .;
+		KEEP (*(SORT(.init_array.*)))
 		KEEP (*(.init_array))
-		/*__init_array_end = .;*/
-		PROVIDE_HIDDEN (__init_array_end = .);
+		__init_array_end = .;
 	} >rom
 	.fini_array : {
 		. = ALIGN(4);
@@ -84,62 +92,44 @@ SECTIONS
 	. = ALIGN(4);
 	_etext = .;
 
-	_data_loadaddr = LOADADDR(.data);
 	.data : {
 		_data = .;
 		*(.data*)	/* Read-write initialized data */
 		. = ALIGN(4);
 		_edata = .;
 	} >ram AT >rom
-	
+	_data_loadaddr = LOADADDR(.data);
 
+ . = ALIGN(4);
 	.bss : {
+		sbss = .;         /* define a global symbol at bss start */
+		__bss_start__ = sbss;
 		*(.bss*)	/* Read-write zero initialized data */
 		*(COMMON)
 		. = ALIGN(4);
 		_ebss = .;
+		__bss_end__ = _ebss;
 	} >ram
-
-
-
-  
-  .noinit (NOLOAD) : ALIGN(4)
-  {
-      _noinit = .;
-
-      *(.noinit .noinit.*)
-
-       . = ALIGN(4) ;
-      _end_noinit = .;
-  } > ram
-  
-
-  /* Mandatory to be word aligned, _sbrk assumes this */
-  PROVIDE ( end = _end_noinit );  /* was _ebss */
-  PROVIDE ( _end = _end_noinit );
-  PROVIDE ( __end = _end_noinit );
-  PROVIDE ( __end__ = _end_noinit );
-  
-
-
 
 	/*
 	 * The .eh_frame section appears to be used for C++ exception handling.
 	 * You may need to fix this if you're using C++.
 	 */
-	/DISCARD/ : { 
-	*(.eh_frame) 
+	/DISCARD/ : {
+	
 	libc.a ( * )
     libm.a ( * )
     libgcc.a ( * )
-	}
 	
+	 /* *(.eh_frame) */ 
+	 } 
 
-  .ARM.attributes 0 : { *(.ARM.attributes) }
-
+	.ARM.attributes 0 : { *(.ARM.attributes) }
+	
+	/*
 	. = ALIGN(4);
 	end = .;
+	*/
 }
 
 PROVIDE(_stack = ORIGIN(ram) + LENGTH(ram));
-

@@ -45,5 +45,9 @@
 			<name>FREERTOS_PATH</name>
 			<value>file:/home/frost/hover8/FreeRTOSv9.0.0/FreeRTOS</value>
 		</variable>
+		<variable>
+			<name>LIBOPENCM3_PATH</name>
+			<value>file:/home/frost/hover8/libopencm3</value>
+		</variable>
 	</variableList>
 </projectDescription>

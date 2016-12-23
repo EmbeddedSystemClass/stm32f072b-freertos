@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <string.h>
 
 #include "hardware.h"
 
@@ -138,7 +139,7 @@ void usart2_isr(void)
 
 // ----- main() ---------------------------------------------------------------
 
-int main(int argc, char* argv[])
+void main(void)
 {
 
 	xSemaphoreRTCWakeup = xSemaphoreCreateBinary();
@@ -151,12 +152,13 @@ int main(int argc, char* argv[])
 	//UART2 queue for reading from UART2 (Maxbotix serial sonar)
 	xUART2RxQueue = xQueueCreate( UART2RX_QUEUE_LENGTH, sizeof( char ) );
 
+	//Query to receive average temperature value from temperature calculation task
 	xTemperatureQueue = xQueueCreate( TEMPERATURE_QUEUE_LENGTH, sizeof( uint16_t ) );
 
 	//Initialize board hardware
 	vInitHardware();
 
-	if( (xSemaphoreRTCWakeup != NULL) && (xUARTQueue != NULL) && (xADCQueue != NULL) && (xTemperatureQueue != NULL) && (xUART2RxQueue != NULL))
+	if( (xSemaphoreRTCWakeup != NULL) && (xUARTQueue != NULL) && (xADCQueue != NULL) && (xTemperatureQueue != NULL) && (xUART2RxQueue != NULL) && (xTemperatureQueue != NULL))
 	{
 		//If all semaphores and queues were successfully created, then create tasks
 
@@ -172,7 +174,6 @@ int main(int argc, char* argv[])
 		xTaskCreate( prvRTCWakeupTask, "RTC", configMINIMAL_STACK_SIZE, NULL, TASK_PRIORITY_RTC_WAKEUP, NULL );
 
 		xTaskCreate( prvUART2RxTask, "RX2", configMINIMAL_STACK_SIZE, NULL, TASK_PRIORITY_UART2RX, NULL );
-
 
 		xTaskCreate( prvMODBUSTask, "MBS", TASK_MODBUS_STACK_SIZE, NULL, TASK_PRIORITY_MODBUS, NULL );
 
@@ -190,17 +191,21 @@ int main(int argc, char* argv[])
 
 // ----------------------------------------------------------------------------
 
+//Ignore unused parameter warnings for tasks
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 static void prvTemperatureCalculationTask( void *pvParameters )
 {
 	int16_t adc_data;
 	int16_t adc_fifo[ADC_RESULT_APPROX_COUNT];
-	uint16_t adc_fifo_current_position = 0;
 	int16_t adc_fifo_sum = 0;	//Considering that ADC is 12 bit and right-aligned, so uint16_t is enough to hold sum of 12-bit values.
-
-	uint16_t adc_average = 0;
 	int16_t temp_celsius10 = 0;
 
-	uint8_t first_run = 1;	//Fifo is uninitialized, so we need tofill it with first read value.
+	uint16_t adc_fifo_current_position = 0;
+	uint16_t adc_average = 0;
+
+	uint8_t first_run = 1;	//Fifo is uninitialized, so we need to fill it with first read value.
 
 	for( ;; )
 	{
@@ -257,9 +262,7 @@ static void prvRTCWakeupTask( void *pvParameters )
 {
 	uint8_t i;
 	char message[UART_QUEUE_LENGTH];
-
 	DateTime_t datetime;
-
 	uint8_t temperature_output_disabled = 0;
 	uint16_t temperature = 0;
 
@@ -267,8 +270,6 @@ static void prvRTCWakeupTask( void *pvParameters )
 	{
 		if( xSemaphoreTake( xSemaphoreRTCWakeup, portMAX_DELAY ) == pdTRUE )
 		{
-			//gpio_toggle(GPIOC, (GPIO6) << 1);
-
 			rtc_get_datetime_struct(&datetime);
 
 			if(exti_get_flag_status(EXTI0))
@@ -340,9 +341,7 @@ static void prvUART1TxGatekeeperTask( void *pvParameters )
 static void prvUART2RxTask( void *pvParameters )
 {
 	char new_char;
-
 	uint8_t digit_position = 0;
-
 	uint16_t distance_inches = 0;
 
 	for( ;; )
@@ -449,6 +448,8 @@ static void prvMODBUSTask( void *pvParameters )
 	}
 }
 
+//End ignoring -Wunused-parameter
+#pragma GCC diagnostic pop
 
 /*-----------------------------------------------------------*/
 

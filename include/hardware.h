@@ -48,7 +48,7 @@ typedef enum tCM0_NVIC_Priority
 	nvic_pr_1 = 0x40,
 	nvic_pr_2 = 0x80,
 	nvic_pr_3 = 0xC0,
-};
+} CM0_NVIC_Priority_t;
 
 #define RCC_BDCR_RTCSEL_MASK		(0x3)
 
@@ -105,9 +105,12 @@ void rtc_set_datetime_seconds(const uint8_t value);
 void rcc_rtc_select_clock(uint32_t clock);
 void rtc_set_datetime(const DateTime_t *datetime);
 void rcc_rtc_select_clock(uint32_t clock);
+void rtc_enter_init_mode(void);
+uint8_t rtc_is_init_mode_on(void);
+void rtc_exit_init_mode(void);
 
 void rcc_clock_setup_in_hse_out_48mhz(void);
 
-void vSetLEDS(uint8_t mask, uint8_t value);
+void vSetLEDS(const uint8_t mask, const uint8_t value);
 
 #endif /* HARDWARE_H */

@@ -15,6 +15,10 @@ volatile uint32_t SystemCoreClock = 0;
 //Used only in debug mode
 #ifdef DEBUG
 
+//Disable warnings for unused variables here
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+
 //From FreeRTOS example http://www.freertos.org/Debugging-Hard-Faults-On-Cortex-M-Microcontrollers.html
 
 void prvGetRegistersFromStack( uint32_t *pulFaultStackAddress )
@@ -64,6 +68,8 @@ __attribute__((naked)) void hard_fault_handler(void)
 	".syntax divided\n") ;
 
 }
+
+#pragma GCC diagnostic pop
 
 #endif //Used only in debug mode
 
@@ -203,8 +209,8 @@ void vInitHardware(void)
 	while (!(RTC_ISR & RTC_ISR_RSF));
 
 	//Enter RTC Init mode
-	RTC_ISR |= RTC_ISR_INIT;
-	while ((RTC_ISR & RTC_ISR_INITF) == 0) {};
+	rtc_enter_init_mode();
+	while(rtc_is_init_mode_on() == 0) {};
 
 	//RTC prescaler settings for 12 MHz HSE crystal
 	rtc_set_prescaler(3749, 99);
@@ -220,7 +226,7 @@ void vInitHardware(void)
 
 
 	//Exit Init mode
-	RTC_ISR &= ~(RTC_ISR_INIT);
+	rtc_exit_init_mode();
 
 	//Enable RTC registers write protection
 	rtc_lock();
@@ -414,8 +420,12 @@ void rcc_rtc_select_clock(uint32_t clock)
 void rtc_enter_init_mode(void)
 {
 	RTC_ISR |= RTC_ISR_INIT;
-	//Dirty
-	while ((RTC_ISR & RTC_ISR_INITF) == 0) {};
+}
+
+//Return zero if RTC is not in init mode
+uint8_t rtc_is_init_mode_on(void)
+{
+	return (RTC_ISR & RTC_ISR_INITF);
 }
 
 void rtc_exit_init_mode(void)
@@ -461,7 +471,7 @@ void rcc_clock_setup_in_hse_out_48mhz(void)
 	SystemCoreClock = 48000000;
 }
 
-void vSetLEDS(uint8_t mask, uint8_t value)
+void vSetLEDS(const uint8_t mask, const uint8_t value)
 {
 	GPIOC_BRR = (uint16_t)((mask & GPIOC_LEDS_MASK) << GPIOC_LEDS_SHIFT);
 	GPIOC_BSRR = (uint32_t)((value & GPIOC_LEDS_MASK) << GPIOC_LEDS_SHIFT);

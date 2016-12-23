@@ -5,8 +5,8 @@
  *      Author: frost
  */
 
+#include "hardware.h"
 #include "port.h"
-
 #include "mb.h"
 
 #include <FreeRTOS.h>
@@ -79,17 +79,24 @@ eMBErrorCode eMBRegHoldingCB( UCHAR * pucRegBuffer, USHORT usAddress, USHORT usN
                 usRegHoldingBuf[iRegIndex] = *pucRegBuffer++ << 8;
                 usRegHoldingBuf[iRegIndex] |= *pucRegBuffer++;
 
+                //Dirty hack to write to ModBus holding registers
+                //We suppose that usRegHoldingBuf[iRegIndex] contains data in correct format (e.g. 0 < Hour < 23, 1 < Day < 31 and so on)
                 if((iRegIndex >= MB_HOLDINGREGS_DAYOFWEEK) && (iRegIndex <= MB_HOLDINGREGS_SECOND))
                 {
-					//Dirty hack to write to ModBus holding registers
-					//Disable scheduler to prevent task switching
-					taskENTER_CRITICAL();
-
 					//Unlock RTC here
 					rtc_unlock();
 
 					//Enter RTC Init mode
 					rtc_enter_init_mode();
+
+					//Wait while RTC enters init mode
+					while(rtc_is_init_mode_on() == 0)
+					{
+						vTaskDelay(1);
+					}
+
+					//Disable scheduler to prevent task switching
+					taskENTER_CRITICAL();
 
 					switch(iRegIndex)
 					{
